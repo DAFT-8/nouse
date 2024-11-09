@@ -25,8 +25,8 @@ $(OBJ): $(SRC)
 
 # Install the binary to /usr/local/bin and set permissions
 install: $(TARGET)
-	cp $(TARGET) /usr/local/bin/
-	chmod u+x /usr/local/bin/$(TARGET)
+	mkdir -p ~/.local/bin
+	cp $(TARGET) ~/.local/bin/
 
 # Clean target to remove compiled files
 clean:
