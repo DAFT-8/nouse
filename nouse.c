@@ -69,6 +69,10 @@ int main() {
 	int rmb_pressed = 0;
 
 	for (int i = 0; i < sizeof(keycodes) / sizeof(int); i++) {
+			XUngrabKey(display, keycodes[i], AnyModifier, DefaultRootWindow(display));
+	}
+
+	for (int i = 0; i < sizeof(keycodes) / sizeof(int); i++) {
 			XGrabKey(display, keycodes[i], AnyModifier, DefaultRootWindow(display), True, GrabModeAsync, GrabModeAsync);
 	}
 
@@ -144,4 +148,3 @@ int main() {
     XCloseDisplay(display);
     return 0;
 }
-
