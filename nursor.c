@@ -62,7 +62,6 @@ void playback_movements(const char *filename) {
 				} else if (y_offset == 564001) {
 						if (x_offset == 1) simulate_scroll(1);
 						else simulate_scroll(-1);
-						XFlush(display);
 				} else {
 						move_cursor(display, x_offset, y_offset);
 				}
