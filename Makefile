@@ -2,9 +2,9 @@ CC = cc
 CFLAGS = -Wall
 LDFLAGS = -lX11 -lXtst
 
-TARGET = nouse
+TARGET = nursor
 
-SRC = nouse.c
+SRC = nursor.c
 
 OBJ = $(SRC:.c=.o)
 
