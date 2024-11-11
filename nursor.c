@@ -3,6 +3,8 @@
 #include <X11/keysym.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define SPEED 25
 #define SLOW_SPEED 5
@@ -31,7 +33,54 @@ int is_key_pressed(char keymap[32], int keycode) {
 	return keymap[keycode / 8] & (1 << (keycode % 8));
 }
 
-int main() {
+void playback_movements(const char *filename) {
+    FILE *file = fopen(filename, "r");
+
+    if (!file) {
+        perror("Unable to open file for playback");
+        return;
+    }
+
+    printf("Playing movements from %s\n", filename);
+
+    int c = 0, x_offset, y_offset;
+
+    while (fscanf(file, "%d %d", &x_offset, &y_offset) == 2) {
+				if (c == 0) {
+						c = 1;
+
+						XWarpPointer(display, None, DefaultRootWindow(display), 0, 0, 0, 0, x_offset, y_offset);
+						XFlush(display);
+				} else if (y_offset == 1317) {
+						if (x_offset == 1) XTestFakeButtonEvent(display, 1, True, CurrentTime);
+						else XTestFakeButtonEvent(display, 1, False, CurrentTime);
+						XFlush(display);
+				} else if (y_offset == 5197) {
+						if (x_offset == 1) XTestFakeButtonEvent(display, 2, True, CurrentTime);
+						else XTestFakeButtonEvent(display, 2, False, CurrentTime);
+						XFlush(display);
+				} else {
+						move_cursor(display, x_offset, y_offset);
+				}
+
+        usleep(10000);
+    }
+
+		c = 0;
+
+		fflush(file);
+
+    fclose(file);
+}
+
+void print_usage() {
+    printf("Usage: nursor [options]\n");
+    printf("	-r, --record <file>    Record movements to the specified file.\n");
+    printf("	-p, --play <file>      Play movements from the specified file.\n");
+    printf("	-h, --help             Show this help message.\n");
+}
+
+int main(int argc, char *argv[]) {
 	char keymap[32];
 	int x_offset, y_offset;
 	XKeyboardState keyboardState;
@@ -78,70 +127,202 @@ int main() {
 			XGrabKey(display, keycodes[i], AnyModifier, DefaultRootWindow(display), True, GrabModeAsync, GrabModeAsync);
 	}
 
-	while (1) {
-			x_offset = 0;
-			y_offset = 0;
+	char *filename = NULL;
+	int record = 0, play = 0, show_help = 0;
 
-			XQueryKeymap(display, keymap);
+	for (int i = 1; i < argc; i++) {
+			if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--record") == 0) {
+					record = 1;
+					if (i + 1 < argc) filename = argv[i + 1];
+			} else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--play") == 0) {
+					play = 1;
+					if (i + 1 < argc) filename = argv[i + 1];
+			} else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+					show_help = 1;
+			}
+	}
 
-			XGetKeyboardControl(display, &keyboardState);
+	if (show_help) {
+			print_usage();
+	} else if (play && filename) {
+			playback_movements(filename);
+	} else {
+			if (record && filename) {
+					int root_x, root_y, win_x, win_y;
+					unsigned int mask;
+					Window window_returned;
 
-			if (keyboardState.led_mask & 0x02) {
-					if (is_key_pressed(keymap, keycode_divide)) cursor_speed = cursor_speed - 1;
-					else if (is_key_pressed(keymap, keycode_multiply)) cursor_speed = cursor_speed + 1;
+					FILE *file = fopen(filename, "w");
 
-					if (is_key_pressed(keymap, keycode_separator)) {
-							if (is_key_pressed(keymap, keycode_up)) y_offset = -SLOW_SPEED;
-							else if (is_key_pressed(keymap, keycode_down)) y_offset = SLOW_SPEED;
-							if (is_key_pressed(keymap, keycode_left)) x_offset = -SLOW_SPEED;
-							else if (is_key_pressed(keymap, keycode_right)) x_offset = SLOW_SPEED;
-							if (is_key_pressed(keymap, keycode_up_left)) { x_offset = -SLOW_SPEED; y_offset = -SLOW_SPEED; }
-							else if (is_key_pressed(keymap, keycode_up_right)) { x_offset = SLOW_SPEED; y_offset = -SLOW_SPEED; }
-							if (is_key_pressed(keymap, keycode_down_left)) { x_offset = -SLOW_SPEED; y_offset = SLOW_SPEED; }
-							else if (is_key_pressed(keymap, keycode_down_right)) { x_offset = SLOW_SPEED; y_offset = SLOW_SPEED; }
-					} else {
-							if (is_key_pressed(keymap, keycode_up)) y_offset = -cursor_speed;
-							else if (is_key_pressed(keymap, keycode_down)) y_offset = cursor_speed;
-							if (is_key_pressed(keymap, keycode_left)) x_offset = -cursor_speed;
-							else if (is_key_pressed(keymap, keycode_right)) x_offset = cursor_speed;
-							if (is_key_pressed(keymap, keycode_up_left)) { x_offset = -cursor_speed; y_offset = -cursor_speed; }
-							else if (is_key_pressed(keymap, keycode_up_right)) { x_offset = cursor_speed; y_offset = -cursor_speed; }
-							if (is_key_pressed(keymap, keycode_down_left)) { x_offset = -cursor_speed; y_offset = cursor_speed; }
-							else if (is_key_pressed(keymap, keycode_down_right)) { x_offset = cursor_speed; y_offset = cursor_speed; }
+					if (!file) {
+							perror("Unable to open file for recording");
+							return 1;
 					}
 
-					int lmb_current = is_key_pressed(keymap, keycode_lmb);
-					if (lmb_current && !lmb_pressed) {
-							XTestFakeButtonEvent(display, 1, True, CurrentTime);
-							lmb_pressed = 1;
-					} else if (!lmb_current && lmb_pressed) {
-							XTestFakeButtonEvent(display, 1, False, CurrentTime);
-							lmb_pressed = 0;
-					}
+					printf("Recording movements to %s ...\n", filename);
 
-					int rmb_current = is_key_pressed(keymap, keycode_rmb);
-					if (rmb_current && !rmb_pressed) {
-							XTestFakeButtonEvent(display, 3, True, CurrentTime);
-							rmb_pressed = 1;
-					} else if (!rmb_current && rmb_pressed) {
-							XTestFakeButtonEvent(display, 3, False, CurrentTime);
-							rmb_pressed = 0;
-					}
+					XQueryPointer(display, DefaultRootWindow(display), &window_returned,
+												&window_returned, &root_x, &root_y, &win_x, &win_y, &mask);
 
-					if (is_key_pressed(keymap, keycode_lmb) && is_key_pressed(keymap, keycode_rmb)) {
-							simulate_middle_click();
-					}
+					fprintf(file, "%d %d\n", root_x, root_y);
 
-					if (is_key_pressed(keymap, keycode_plus)) simulate_scroll(-1);
-					else if (is_key_pressed(keymap, keycode_minus)) simulate_scroll(1);
+					fflush(file);
 
-					if (x_offset != 0 || y_offset != 0) {
-							move_cursor(display, x_offset, y_offset);
-					}
+					fclose(file);
 			}
 
-			usleep(10000);
-    }
+			while (1) {
+					x_offset = 0;
+					y_offset = 0;
+
+					XQueryKeymap(display, keymap);
+
+					XGetKeyboardControl(display, &keyboardState);
+
+					if (keyboardState.led_mask & 0x02) {
+							if (is_key_pressed(keymap, keycode_divide)) cursor_speed = cursor_speed - 1;
+							else if (is_key_pressed(keymap, keycode_multiply)) cursor_speed = cursor_speed + 1;
+
+							if (is_key_pressed(keymap, keycode_separator)) {
+									if (is_key_pressed(keymap, keycode_up)) y_offset = -SLOW_SPEED;
+									else if (is_key_pressed(keymap, keycode_down)) y_offset = SLOW_SPEED;
+									if (is_key_pressed(keymap, keycode_left)) x_offset = -SLOW_SPEED;
+									else if (is_key_pressed(keymap, keycode_right)) x_offset = SLOW_SPEED;
+									if (is_key_pressed(keymap, keycode_up_left)) { x_offset = -SLOW_SPEED; y_offset = -SLOW_SPEED; }
+									else if (is_key_pressed(keymap, keycode_up_right)) { x_offset = SLOW_SPEED; y_offset = -SLOW_SPEED; }
+									if (is_key_pressed(keymap, keycode_down_left)) { x_offset = -SLOW_SPEED; y_offset = SLOW_SPEED; }
+									else if (is_key_pressed(keymap, keycode_down_right)) { x_offset = SLOW_SPEED; y_offset = SLOW_SPEED; }
+							} else {
+									if (is_key_pressed(keymap, keycode_up)) y_offset = -cursor_speed;
+									else if (is_key_pressed(keymap, keycode_down)) y_offset = cursor_speed;
+									if (is_key_pressed(keymap, keycode_left)) x_offset = -cursor_speed;
+									else if (is_key_pressed(keymap, keycode_right)) x_offset = cursor_speed;
+									if (is_key_pressed(keymap, keycode_up_left)) { x_offset = -cursor_speed; y_offset = -cursor_speed; }
+									else if (is_key_pressed(keymap, keycode_up_right)) { x_offset = cursor_speed; y_offset = -cursor_speed; }
+									if (is_key_pressed(keymap, keycode_down_left)) { x_offset = -cursor_speed; y_offset = cursor_speed; }
+									else if (is_key_pressed(keymap, keycode_down_right)) { x_offset = cursor_speed; y_offset = cursor_speed; }
+							}
+
+							if (is_key_pressed(keymap, keycode_plus)) simulate_scroll(-1);
+							else if (is_key_pressed(keymap, keycode_minus)) simulate_scroll(1);
+
+							int lmb_current = is_key_pressed(keymap, keycode_lmb), rmb_current = is_key_pressed(keymap, keycode_rmb);
+							if (is_key_pressed(keymap, keycode_lmb) && is_key_pressed(keymap, keycode_rmb)) {
+									simulate_middle_click();
+							} else if (lmb_current && !lmb_pressed) {
+									XTestFakeButtonEvent(display, 1, True, CurrentTime);
+									XFlush(display);
+									lmb_pressed = 1;
+
+									if (record && filename) {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", 1, 1317);
+
+											fflush(file);
+
+											fclose(file);
+									}
+							} else if (!lmb_current && lmb_pressed) {
+									XTestFakeButtonEvent(display, 1, False, CurrentTime);
+									XFlush(display);
+									lmb_pressed = 0;
+
+									if (record && filename) {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", 0, 1317);
+
+											fflush(file);
+
+											fclose(file);
+									}
+							} else if (rmb_current && !rmb_pressed) {
+									XTestFakeButtonEvent(display, 3, True, CurrentTime);
+									XFlush(display);
+									rmb_pressed = 1;
+
+									if (record && filename) {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", 1, 5197);
+
+											fflush(file);
+
+											fclose(file);
+									}
+							} else if (!rmb_current && rmb_pressed) {
+									XTestFakeButtonEvent(display, 3, False, CurrentTime);
+									XFlush(display);
+									rmb_pressed = 0;
+
+									if (record && filename) {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", 0, 5197);
+
+											fflush(file);
+
+											fclose(file);
+									}
+							}
+
+							if (x_offset != 0 || y_offset != 0) {
+									move_cursor(display, x_offset, y_offset);
+
+									if (record && filename) {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", x_offset, y_offset);
+
+											fflush(file);
+
+											fclose(file);
+									}
+							} else {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", 0, 0);
+
+											fflush(file);
+
+											fclose(file);
+							}
+					}
+
+					usleep(10000);
+				}
+		}
 
     for (int i = 0; i < sizeof(keycodes) / sizeof(int); i++) {
         XUngrabKey(display, keycodes[i], AnyModifier, DefaultRootWindow(display));
