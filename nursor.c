@@ -59,6 +59,10 @@ void playback_movements(const char *filename) {
 						if (x_offset == 1) XTestFakeButtonEvent(display, 2, True, CurrentTime);
 						else XTestFakeButtonEvent(display, 2, False, CurrentTime);
 						XFlush(display);
+				} else if (y_offset == 564001) {
+						if (x_offset == 1) simulate_scroll(1);
+						else simulate_scroll(-1);
+						XFlush(display);
 				} else {
 						move_cursor(display, x_offset, y_offset);
 				}
@@ -203,8 +207,41 @@ int main(int argc, char *argv[]) {
 									else if (is_key_pressed(keymap, keycode_down_right)) { x_offset = cursor_speed; y_offset = cursor_speed; }
 							}
 
-							if (is_key_pressed(keymap, keycode_plus)) simulate_scroll(-1);
-							else if (is_key_pressed(keymap, keycode_minus)) simulate_scroll(1);
+							if (is_key_pressed(keymap, keycode_plus)) {
+									simulate_scroll(1);
+
+									if (record && filename) {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", 1, 564001);
+
+											fflush(file);
+
+											fclose(file);
+									}
+							} else if (is_key_pressed(keymap, keycode_minus)) {
+									simulate_scroll(-1);
+
+									if (record && filename) {
+											FILE *file = fopen(filename, "a");
+
+											if (!file) {
+													perror("Unable to open file for recording");
+													return 1;
+											}
+
+											fprintf(file, "%d %d\n", 0, 564001);
+
+											fflush(file);
+
+											fclose(file);
+									}
+							}
 
 							int lmb_current = is_key_pressed(keymap, keycode_lmb), rmb_current = is_key_pressed(keymap, keycode_rmb);
 							if (is_key_pressed(keymap, keycode_lmb) && is_key_pressed(keymap, keycode_rmb)) {
