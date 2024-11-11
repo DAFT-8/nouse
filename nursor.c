@@ -68,6 +68,8 @@ int main() {
 	int lmb_pressed = 0;
 	int rmb_pressed = 0;
 
+	XAllowEvents(display, AsyncKeyboard, CurrentTime);
+
 	for (int i = 0; i < sizeof(keycodes) / sizeof(int); i++) {
 			XUngrabKey(display, keycodes[i], AnyModifier, DefaultRootWindow(display));
 	}
