@@ -341,6 +341,7 @@ int main(int argc, char *argv[]) {
 											fclose(file);
 									}
 							} else {
+									if (record && filename) {
 											FILE *file = fopen(filename, "a");
 
 											if (!file) {
@@ -353,6 +354,7 @@ int main(int argc, char *argv[]) {
 											fflush(file);
 
 											fclose(file);
+									}
 							}
 					}
 
